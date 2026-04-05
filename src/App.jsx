@@ -1,11 +1,23 @@
 import { useEffect, useState } from 'react'
-import heroImg from '../design_Sources/Photosession/beautiful-couple-on-the-beach-2026-03-25-02-45-15-utc.jpg'
+import hero430 from './assets/hero/hero-430.jpg'
+import hero860 from './assets/hero/hero-860.jpg'
 import './App.css'
 
-const INVITATION_DATE = '2026-9-25T17:00:00'
+const INVITATION_DATE = '2026-09-25T17:00:00'
 
 function getCountdownParts(targetDate) {
-  const distance = new Date(targetDate).getTime() - Date.now()
+  const targetTime = new Date(targetDate).getTime()
+
+  if (Number.isNaN(targetTime)) {
+    return {
+      days: '00',
+      hours: '00',
+      minutes: '00',
+      seconds: '00',
+    }
+  }
+
+  const distance = targetTime - Date.now()
 
   if (distance <= 0) {
     return {
@@ -86,9 +98,13 @@ function App() {
       <section className="hero-section" aria-label="Invitation hero section">
         <div className="hero-photo-shell">
           <img
-            src={heroImg}
+            src={hero430}
+            srcSet={`${hero430} 430w, ${hero860} 860w`}
+            sizes="(max-width: 430px) 100vw, 430px"
             className="hero-photo"
             alt="Romantic couple on the beach"
+            loading="eager"
+            decoding="async"
           />
           <div className="hero-veil" aria-hidden="true" />
         </div>
@@ -127,6 +143,77 @@ function App() {
                 <p className="countdown-label">SECONDS</p>
               </article>
             </div>
+          </section>
+
+          <section className="invitation-block" aria-label="Our story section">
+            <div className="asset-placeholder asset-rings" aria-hidden="true" />
+            <h2 className="section-title">OUR STORY</h2>
+            <p className="section-copy">
+              Two hearts met, and a beautiful story began. In each other, we
+              found not just love, but a home. With every shared moment, our
+              bond grew deeper. And now, we step forward hand in hand, ready to
+              write the rest of our story together.
+            </p>
+          </section>
+
+          <section className="invitation-block" aria-label="Celebration details">
+            <div className="asset-placeholder asset-cheers" aria-hidden="true" />
+            <h2 className="section-title">CELEBRATION</h2>
+            <p className="section-subtitle">Join us for</p>
+            <p className="section-copy section-copy-tight">
+              love, laughter, and dancing the night away!
+            </p>
+
+            <div className="event-meta">
+              <p className="event-meta-item">25 SEP</p>
+              <span className="event-meta-divider" aria-hidden="true" />
+              <p className="event-meta-item">20:00 P.M.</p>
+            </div>
+
+            <p className="section-copy section-copy-tight">
+              Rixos Alamein Hotel, North Coast, Egypt
+            </p>
+
+            <button className="map-button" type="button">
+              Open in Maps
+            </button>
+          </section>
+
+          <section className="invitation-block" aria-label="Dress code section">
+            <div className="asset-placeholder asset-dress" aria-hidden="true" />
+            <h2 className="section-title">DRESS CODE</h2>
+            <p className="section-subtitle">SemiFormal | Baby Blue</p>
+          </section>
+
+          <section className="invitation-block" aria-label="RSVP section">
+            <div className="asset-placeholder asset-rsvp" aria-hidden="true" />
+            <h2 className="section-title">RSVP</h2>
+
+            <form className="rsvp-form" onSubmit={(event) => event.preventDefault()}>
+              <input
+                className="rsvp-input"
+                type="text"
+                name="name"
+                placeholder="Name"
+                autoComplete="name"
+              />
+              <input
+                className="rsvp-input"
+                type="number"
+                name="plusOnes"
+                placeholder="Are you bringing a plus 1?"
+                min="0"
+                max="5"
+              />
+              <button className="rsvp-submit" type="submit">
+                Confirm
+              </button>
+            </form>
+          </section>
+
+          <section className="invitation-block invitation-block-last" aria-label="Attendees summary">
+            <p className="attendees-count">100</p>
+            <p className="attendees-label">Attendees</p>
           </section>
         </div>
       </section>

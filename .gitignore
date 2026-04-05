@@ -23,5 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 
-/design_sources/*.aep
-/design_sources/*.ai
+<<<<<<< HEAD
+# Design source files (large originals)
+/design_Sources/**
+/design_sources/**
