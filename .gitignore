@@ -23,5 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-
-/design_sources
+/design_sources/*.aep
+/design_sources/*.ai
