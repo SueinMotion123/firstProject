@@ -1,9 +1,29 @@
-import { useEffect, useState } from 'react'
-import hero430 from './assets/hero/hero-430.jpg'
-import hero860 from './assets/hero/hero-860.jpg'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const INVITATION_DATE = '2026-09-25T17:00:00'
+
+const hero430Imports = import.meta.glob('./assets/hero/photosession/*-430.jpg', {
+  eager: true,
+  import: 'default',
+})
+
+const hero860Imports = import.meta.glob('./assets/hero/photosession/*-860.jpg', {
+  eager: true,
+  import: 'default',
+})
+
+const heroSlides = Object.entries(hero430Imports)
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([path, smallSrc]) => {
+    const largePath = path.replace('-430.jpg', '-860.jpg')
+    const largeSrc = hero860Imports[largePath] ?? smallSrc
+
+    return {
+      smallSrc,
+      largeSrc,
+    }
+  })
 
 function getCountdownParts(targetDate) {
   const targetTime = new Date(targetDate).getTime()
@@ -57,6 +77,15 @@ function App() {
   const [countdown, setCountdown] = useState(() =>
     getCountdownParts(INVITATION_DATE),
   )
+  const [activeSlide, setActiveSlide] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffsetPx, setDragOffsetPx] = useState(0)
+
+  const heroShellRef = useRef(null)
+  const touchStartXRef = useRef(null)
+  const touchStartYRef = useRef(null)
+
+  const slides = useMemo(() => heroSlides, [])
 
   useEffect(() => {
     const updateDeviceFlag = () => setIsPhone(detectPhone())
@@ -75,6 +104,72 @@ function App() {
 
     return () => clearInterval(timer)
   }, [])
+
+  const showPreviousSlide = () => {
+    if (!slides.length) return
+
+    setActiveSlide((current) =>
+      current === 0 ? slides.length - 1 : current - 1,
+    )
+  }
+
+  const showNextSlide = () => {
+    if (!slides.length) return
+
+    setActiveSlide((current) =>
+      current === slides.length - 1 ? 0 : current + 1,
+    )
+  }
+
+  const handleTouchStart = (event) => {
+    const touch = event.touches[0]
+    touchStartXRef.current = touch.clientX
+    touchStartYRef.current = touch.clientY
+    setIsDragging(true)
+    setDragOffsetPx(0)
+  }
+
+  const handleTouchMove = (event) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return
+
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - touchStartXRef.current
+    const deltaY = touch.clientY - touchStartYRef.current
+
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      event.preventDefault()
+      setDragOffsetPx(deltaX)
+    }
+  }
+
+  const handleTouchEnd = (event) => {
+    if (touchStartXRef.current === null) return
+
+    const shellWidth = heroShellRef.current?.clientWidth ?? 1
+    const swipeDistance = event.changedTouches[0].clientX - touchStartXRef.current
+    const swipeThreshold = shellWidth * 0.16
+
+    if (Math.abs(swipeDistance) >= swipeThreshold) {
+      if (swipeDistance < 0) showNextSlide()
+      if (swipeDistance > 0) showPreviousSlide()
+    }
+
+    setIsDragging(false)
+    setDragOffsetPx(0)
+    touchStartXRef.current = null
+    touchStartYRef.current = null
+  }
+
+  const handleTouchCancel = () => {
+    setIsDragging(false)
+    setDragOffsetPx(0)
+    touchStartXRef.current = null
+    touchStartYRef.current = null
+  }
+
+  const shellWidth = heroShellRef.current?.clientWidth ?? 1
+  const dragOffsetPercent = (dragOffsetPx / shellWidth) * 100
+  const trackTranslate = -activeSlide * 100 + dragOffsetPercent
 
   if (!isPhone) {
     return (
@@ -96,16 +191,33 @@ function App() {
   return (
     <main className="invitation-page">
       <section className="hero-section" aria-label="Invitation hero section">
-        <div className="hero-photo-shell">
-          <img
-            src={hero430}
-            srcSet={`${hero430} 430w, ${hero860} 860w`}
-            sizes="(max-width: 430px) 100vw, 430px"
-            className="hero-photo"
-            alt="Romantic couple on the beach"
-            loading="eager"
-            decoding="async"
-          />
+        <div
+          ref={heroShellRef}
+          className="hero-photo-shell"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
+        >
+          {!!slides.length && (
+            <div
+              className={`hero-track ${isDragging ? 'is-dragging' : ''}`}
+              style={{ transform: `translateX(${trackTranslate}%)` }}
+            >
+              {slides.map((slide, index) => (
+                <img
+                  key={slide.smallSrc}
+                  src={slide.smallSrc}
+                  srcSet={`${slide.smallSrc} 430w, ${slide.largeSrc} 860w`}
+                  sizes="(max-width: 430px) 100vw, 430px"
+                  className="hero-photo hero-slide"
+                  alt={`Romantic couple photo ${index + 1}`}
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
+              ))}
+            </div>
+          )}
           <div className="hero-veil" aria-hidden="true" />
         </div>
 

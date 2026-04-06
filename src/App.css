@@ -29,21 +29,41 @@
 }
 
 .hero-photo-shell {
+  border-radius: 0 0 150px 150px;
   position: relative;
   isolation: isolate;
+  touch-action: pan-y;
+  overflow: hidden;
+}
+
+.hero-track {
+  display: flex;
+  width: 100%;
+  transition: transform 360ms ease;
+  will-change: transform;
+}
+
+.hero-track.is-dragging {
+  transition: none;
 }
 
 .hero-photo {
-  border-radius: 40%;
   display: block;
   width: 100%;
   height: auto;
   opacity: 0.7;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.hero-slide {
+  flex: 0 0 100%;
 }
 
 .hero-veil {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.12) 0%,
@@ -51,7 +71,6 @@
     rgba(251, 248, 241, 0.9) 100%
   );
 }
-
 
 .hero-copy {
   position: relative;
@@ -155,7 +174,6 @@
   margin: 8px auto 0;
   width: fit-content;
   padding: 1px 4px 0;
-  background: #ffd9df;
   color: #181818;
   font-size: clamp(0.8rem, 3.2vw, 1rem);
   line-height: 1.05;
