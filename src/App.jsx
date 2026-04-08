@@ -1,7 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
+import cheerVideo from './assets/animations/cheer.mp4'
+import dressCodeVideo from './assets/animations/dress-code.mp4'
+import ringsVideo from './assets/animations/rings.mp4'
+import rsvpVideo from './assets/animations/rsvp.mp4'
 import './App.css'
 
 const INVITATION_DATE = '2026-09-25T17:00:00'
+const RSVP_TABLE = import.meta.env.VITE_SUPABASE_RSVP_TABLE || 'attendees'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null
 
 const hero430Imports = import.meta.glob('./assets/hero/photosession/*-430.jpg', {
   eager: true,
@@ -80,6 +94,14 @@ function App() {
   const [activeSlide, setActiveSlide] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffsetPx, setDragOffsetPx] = useState(0)
+  const [name, setName] = useState('')
+  const [plusOnes, setPlusOnes] = useState('')
+  const [nameError, setNameError] = useState('')
+  const [plusOnesError, setPlusOnesError] = useState('')
+  const [formError, setFormError] = useState('')
+  const [formSuccess, setFormSuccess] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [attendeesTotal, setAttendeesTotal] = useState(null)
 
   const heroShellRef = useRef(null)
   const touchStartXRef = useRef(null)
@@ -171,6 +193,80 @@ function App() {
   const dragOffsetPercent = (dragOffsetPx / shellWidth) * 100
   const trackTranslate = -activeSlide * 100 + dragOffsetPercent
 
+  const fetchAttendeesTotal = useCallback(async () => {
+    if (!supabase) return
+
+    const { data, error, count } = await supabase
+      .from(RSVP_TABLE)
+      .select('plus_ones', { count: 'exact' })
+
+    if (error) return
+
+    const plusOnesSum = (data ?? []).reduce(
+      (sum, row) => sum + (Number(row.plus_ones) || 0),
+      0,
+    )
+
+    setAttendeesTotal((count ?? 0) + plusOnesSum)
+  }, [])
+
+  useEffect(() => {
+    fetchAttendeesTotal()
+  }, [fetchAttendeesTotal])
+
+  const handleRsvpSubmit = async (event) => {
+    event.preventDefault()
+
+    setNameError('')
+    setPlusOnesError('')
+    setFormError('')
+    setFormSuccess('')
+
+    const trimmedName = name.trim()
+    const plusOnesValue = Number(plusOnes)
+
+    let hasValidationError = false
+
+    if (!trimmedName) {
+      setNameError('Name is empty.')
+      hasValidationError = true
+    }
+
+    if (plusOnes === '') {
+      setPlusOnesError('Plus one value is empty.')
+      hasValidationError = true
+    } else if (!Number.isInteger(plusOnesValue) || plusOnesValue < 0 || plusOnesValue > 5) {
+      setPlusOnesError('Plus one value must be a whole number between 0 and 5.')
+      hasValidationError = true
+    }
+
+    if (hasValidationError) return
+
+    if (!supabase) {
+      setFormError('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    const { error } = await supabase.from(RSVP_TABLE).insert({
+      name: trimmedName,
+      plus_ones: plusOnesValue,
+    })
+
+    setIsSubmitting(false)
+
+    if (error) {
+      setFormError(error.message)
+      return
+    }
+
+    setFormSuccess('RSVP submitted successfully ✨')
+    setName('')
+    setPlusOnes('')
+    await fetchAttendeesTotal()
+  }
+
   if (!isPhone) {
     return (
       <main className="unsupported-page">
@@ -258,7 +354,16 @@ function App() {
           </section>
 
           <section className="invitation-block" aria-label="Our story section">
-            <div className="asset-placeholder asset-rings" aria-hidden="true" />
+            <video
+              className="section-icon-video section-icon-rings"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+            >
+              <source src={ringsVideo} type="video/mp4" />
+            </video>
             <h2 className="section-title">OUR STORY</h2>
             <p className="section-copy">
               Two hearts met, and a beautiful story began. In each other, we
@@ -269,7 +374,17 @@ function App() {
           </section>
 
           <section className="invitation-block" aria-label="Celebration details">
-            <div className="asset-placeholder asset-cheers" aria-hidden="true" />
+            <video
+              className="section-icon-video section-icon-small"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              aria-hidden="true"
+            >
+              <source src={cheerVideo} type="video/mp4" />
+            </video>
             <h2 className="section-title">CELEBRATION</h2>
             <p className="section-subtitle">Join us for</p>
             <p className="section-copy section-copy-tight">
@@ -282,33 +397,59 @@ function App() {
               <p className="event-meta-item">20:00 P.M.</p>
             </div>
 
-            <p className="section-copy section-copy-tight">
-              Rixos Alamein Hotel, North Coast, Egypt
-            </p>
-
-            <button className="map-button" type="button">
+            <a
+              className="map-button"
+              href="https://maps.app.goo.gl/LihWnPfcCP9a7Xu58"
+              target="_blank"
+              rel="noreferrer"
+            >
               Open in Maps
-            </button>
+            </a>
           </section>
 
           <section className="invitation-block" aria-label="Dress code section">
-            <div className="asset-placeholder asset-dress" aria-hidden="true" />
+            <video
+              className="section-icon-video section-icon-small"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              aria-hidden="true"
+            >
+              <source src={dressCodeVideo} type="video/mp4" />
+            </video>
             <h2 className="section-title">DRESS CODE</h2>
             <p className="section-subtitle">SemiFormal | Baby Blue</p>
           </section>
 
           <section className="invitation-block" aria-label="RSVP section">
-            <div className="asset-placeholder asset-rsvp" aria-hidden="true" />
+            <video
+              className="section-icon-video section-icon-small"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              aria-hidden="true"
+            >
+              <source src={rsvpVideo} type="video/mp4" />
+            </video>
             <h2 className="section-title">RSVP</h2>
 
-            <form className="rsvp-form" onSubmit={(event) => event.preventDefault()}>
+            <form className="rsvp-form" onSubmit={handleRsvpSubmit} noValidate>
               <input
                 className="rsvp-input"
                 type="text"
                 name="name"
                 placeholder="Name"
                 autoComplete="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                aria-invalid={!!nameError}
               />
+              {!!nameError && <p className="rsvp-feedback rsvp-feedback-error">{nameError}</p>}
+
               <input
                 className="rsvp-input"
                 type="number"
@@ -316,15 +457,25 @@ function App() {
                 placeholder="Are you bringing a plus 1?"
                 min="0"
                 max="5"
+                value={plusOnes}
+                onChange={(event) => setPlusOnes(event.target.value)}
+                aria-invalid={!!plusOnesError}
               />
-              <button className="rsvp-submit" type="submit">
-                Confirm
+              {!!plusOnesError && (
+                <p className="rsvp-feedback rsvp-feedback-error">{plusOnesError}</p>
+              )}
+
+              <button className="rsvp-submit" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Submitting...' : 'Confirm'}
               </button>
+
+              {!!formError && <p className="rsvp-feedback rsvp-feedback-error">{formError}</p>}
+              {!!formSuccess && <p className="rsvp-feedback rsvp-feedback-success">{formSuccess}</p>}
             </form>
           </section>
 
           <section className="invitation-block invitation-block-last" aria-label="Attendees summary">
-            <p className="attendees-count">100</p>
+            <p className="attendees-count">{attendeesTotal ?? '...'}</p>
             <p className="attendees-label">Attendees</p>
           </section>
         </div>
