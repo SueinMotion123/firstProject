@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import LottiePackage from 'lottie-react'
 import cheerVideo from './assets/animations/cheer.mp4'
 import dressCodeVideo from './assets/animations/dress-code.mp4'
-import ringsVideo from './assets/animations/rings.mp4'
+import ringsAnimation from './assets/animations/rings.json'
+import champAnimation from './assets/animations/champ.json'
+import diamondsAnimation from './assets/animations/diamond.json'
+import rsvpAnimation from './assets/animations/rsvp.json'
 import rsvpVideo from './assets/animations/rsvp.mp4'
 import './App.css'
+
+
 
 const INVITATION_DATE = '2026-09-25T17:00:00'
 const RSVP_TABLE = import.meta.env.VITE_SUPABASE_RSVP_TABLE || 'attendees'
@@ -38,6 +44,37 @@ const heroSlides = Object.entries(hero430Imports)
       largeSrc,
     }
   })
+
+const LottieComponent =
+  typeof LottiePackage === 'function'
+    ? LottiePackage
+    : typeof LottiePackage?.default === 'function'
+      ? LottiePackage.default
+      : null
+
+class LottieErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error, info) {
+    this.props.onError?.(error, info)
+    // Keep the app usable if the animation fails in some browsers/devices.
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? null
+    }
+
+    return this.props.children
+  }
+}
 
 function getCountdownParts(targetDate) {
   const targetTime = new Date(targetDate).getTime()
@@ -87,13 +124,13 @@ function detectPhone() {
 }
 
 function App() {
+  const isDev = import.meta.env.DEV
   const [isPhone, setIsPhone] = useState(() => detectPhone())
   const [countdown, setCountdown] = useState(() =>
     getCountdownParts(INVITATION_DATE),
   )
   const [activeSlide, setActiveSlide] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragOffsetPx, setDragOffsetPx] = useState(0)
+  const [isTrackTransitionEnabled, setIsTrackTransitionEnabled] = useState(true)
   const [name, setName] = useState('')
   const [plusOnes, setPlusOnes] = useState('')
   const [nameError, setNameError] = useState('')
@@ -102,12 +139,16 @@ function App() {
   const [formSuccess, setFormSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [attendeesTotal, setAttendeesTotal] = useState(null)
+  const [ringsDebugStatus, setRingsDebugStatus] = useState('idle')
 
-  const heroShellRef = useRef(null)
-  const touchStartXRef = useRef(null)
-  const touchStartYRef = useRef(null)
+  const ringsLottieRef = useRef(null)
+  const ringsPlayTimerRef = useRef(null)
 
   const slides = useMemo(() => heroSlides, [])
+  const carouselSlides = useMemo(() => {
+    if (slides.length <= 1) return slides
+    return [...slides, slides[0]]
+  }, [slides])
 
   useEffect(() => {
     const updateDeviceFlag = () => setIsPhone(detectPhone())
@@ -127,71 +168,43 @@ function App() {
     return () => clearInterval(timer)
   }, [])
 
-  const showPreviousSlide = () => {
-    if (!slides.length) return
-
-    setActiveSlide((current) =>
-      current === 0 ? slides.length - 1 : current - 1,
-    )
-  }
-
-  const showNextSlide = () => {
-    if (!slides.length) return
-
-    setActiveSlide((current) =>
-      current === slides.length - 1 ? 0 : current + 1,
-    )
-  }
-
-  const handleTouchStart = (event) => {
-    const touch = event.touches[0]
-    touchStartXRef.current = touch.clientX
-    touchStartYRef.current = touch.clientY
-    setIsDragging(true)
-    setDragOffsetPx(0)
-  }
-
-  const handleTouchMove = (event) => {
-    if (touchStartXRef.current === null || touchStartYRef.current === null) return
-
-    const touch = event.touches[0]
-    const deltaX = touch.clientX - touchStartXRef.current
-    const deltaY = touch.clientY - touchStartYRef.current
-
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
-      event.preventDefault()
-      setDragOffsetPx(deltaX)
+  useEffect(() => {
+    return () => {
+      if (ringsPlayTimerRef.current) {
+        window.clearTimeout(ringsPlayTimerRef.current)
+      }
     }
+  }, [])
+
+  useEffect(() => {
+    if (slides.length <= 1) return
+
+    const autoSlideTimer = window.setInterval(() => {
+      setActiveSlide((current) => (current >= slides.length ? current : current + 1))
+    }, 3500)
+
+    return () => window.clearInterval(autoSlideTimer)
+  }, [slides.length])
+
+  useEffect(() => {
+    if (isTrackTransitionEnabled || activeSlide !== 0) return
+
+    const rafId = window.requestAnimationFrame(() => {
+      setIsTrackTransitionEnabled(true)
+    })
+
+    return () => window.cancelAnimationFrame(rafId)
+  }, [isTrackTransitionEnabled, activeSlide])
+
+  const handleHeroTrackTransitionEnd = () => {
+    if (slides.length <= 1) return
+    if (activeSlide !== slides.length) return
+
+    setIsTrackTransitionEnabled(false)
+    setActiveSlide(0)
   }
 
-  const handleTouchEnd = (event) => {
-    if (touchStartXRef.current === null) return
-
-    const shellWidth = heroShellRef.current?.clientWidth ?? 1
-    const swipeDistance = event.changedTouches[0].clientX - touchStartXRef.current
-    const swipeThreshold = shellWidth * 0.16
-
-    if (Math.abs(swipeDistance) >= swipeThreshold) {
-      if (swipeDistance < 0) showNextSlide()
-      if (swipeDistance > 0) showPreviousSlide()
-    }
-
-    setIsDragging(false)
-    setDragOffsetPx(0)
-    touchStartXRef.current = null
-    touchStartYRef.current = null
-  }
-
-  const handleTouchCancel = () => {
-    setIsDragging(false)
-    setDragOffsetPx(0)
-    touchStartXRef.current = null
-    touchStartYRef.current = null
-  }
-
-  const shellWidth = heroShellRef.current?.clientWidth ?? 1
-  const dragOffsetPercent = (dragOffsetPx / shellWidth) * 100
-  const trackTranslate = -activeSlide * 100 + dragOffsetPercent
+  const trackTranslate = -activeSlide * 100
 
   const fetchAttendeesTotal = useCallback(async () => {
     if (!supabase) return
@@ -284,25 +297,27 @@ function App() {
     )
   }
 
+
+
+
   return (
     <main className="invitation-page">
       <section className="hero-section" aria-label="Invitation hero section">
         <div
-          ref={heroShellRef}
           className="hero-photo-shell"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchCancel}
         >
           {!!slides.length && (
             <div
-              className={`hero-track ${isDragging ? 'is-dragging' : ''}`}
-              style={{ transform: `translateX(${trackTranslate}%)` }}
+              className="hero-track"
+              style={{
+                transform: `translateX(${trackTranslate}%)`,
+                transition: isTrackTransitionEnabled ? 'transform 1200ms ease' : 'none',
+              }}
+              onTransitionEnd={handleHeroTrackTransitionEnd}
             >
-              {slides.map((slide, index) => (
+              {carouselSlides.map((slide, index) => (
                 <img
-                  key={slide.smallSrc}
+                  key={`${slide.smallSrc}-${index}`}
                   src={slide.smallSrc}
                   srcSet={`${slide.smallSrc} 430w, ${slide.largeSrc} 860w`}
                   sizes="(max-width: 430px) 100vw, 430px"
@@ -354,124 +369,200 @@ function App() {
           </section>
 
           <section className="invitation-block" aria-label="Our story section">
-            <video
-              className="section-icon-video section-icon-rings"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="metadata"
+            <LottieErrorBoundary
+              fallback={"Animation failed to load."}
+              onError={(error, info) => console.log("Lottie error:", error, info)}
             >
-              <source src={ringsVideo} type="video/mp4" />
-            </video>
-            <h2 className="section-title">OUR STORY</h2>
-            <p className="section-copy">
-              Two hearts met, and a beautiful story began. In each other, we
-              found not just love, but a home. With every shared moment, our
-              bond grew deeper. And now, we step forward hand in hand, ready to
-              write the rest of our story together.
-            </p>
+              <div
+                style={{
+                  marginTop: '120px',
+                  width: '100%',
+                  height: '1700px',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  pointerEvents: 'none',
+                  transform: 'translateY(-90%)', /* adjust this value to center the animation vertically */
+                }}>
+                {LottieComponent ? (
+                  <LottieComponent
+                    animationData={ringsAnimation}
+                    loop={true}
+                    autoplay={true}
+                    style={{ width: '150%', height: '3400px', marginLeft: '-25%', overflow: 'hidden', pointerEvents: 'none' }}
+                  />
+                ) : (
+                  <div className="section-icon-video section-icon-rings" aria-hidden="true" />
+                )}
+              </div>
+
+            </LottieErrorBoundary>
+            {isDev && <p className="rsvp-feedback">Rings debug: {ringsDebugStatus}</p>}
+            <div
+              style={{
+                marginTop: '-1690px',
+              }}
+            >
+
+              <h2 className="section-title">OUR STORY</h2>
+              <p className="section-copy">
+                Two hearts met, and a beautiful story began. In each other, we
+                found not just love, but a home. With every shared moment, our
+                bond grew deeper. And now, we step forward hand in hand, ready to
+                write the rest of our story together.
+              </p>
+            </div>
           </section>
 
           <section className="invitation-block" aria-label="Celebration details">
-            <video
-              className="section-icon-video section-icon-small"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="metadata"
-              aria-hidden="true"
+            <LottieErrorBoundary
+              fallback={"Animation failed to load."}
+              onError={(error, info) => console.log("Lottie error:", error, info)}
             >
-              <source src={cheerVideo} type="video/mp4" />
-            </video>
-            <h2 className="section-title">CELEBRATION</h2>
-            <p className="section-subtitle">Join us for</p>
-            <p className="section-copy section-copy-tight">
-              love, laughter, and dancing the night away!
-            </p>
+              <div
+                style={{
+                  marginTop: '-100px',
+                  width: '100%',
+                  height: '1700px',
+                  pointerEvents: 'none',
+                  transform: 'translateY(-97%)', /* adjust this value to center the animation vertically */
+                }}>
+                {LottieComponent ? (
+                  <LottieComponent
+                    animationData={champAnimation}
+                    loop={true}
+                    autoplay={true}
+                    style={{ width: '150%', height: '3400px', marginLeft: '-25%', overflow: 'hidden', pointerEvents: 'none' }}
+                  />
+                ) : (
+                  <div className="section-icon-video section-icon-rings" aria-hidden="true" />
+                )}
+              </div>
 
-            <div className="event-meta">
-              <p className="event-meta-item">25 SEP</p>
-              <span className="event-meta-divider" aria-hidden="true" />
-              <p className="event-meta-item">20:00 P.M.</p>
+            </LottieErrorBoundary>
+
+            <div
+              style={{
+                marginTop: '-1450px',
+              }}
+            >
+
+              <h2 className="section-title">CELEBRATION</h2>
+              <p className="section-subtitle">Join us for</p>
+              <p className="section-copy section-copy-tight">
+                love, laughter, and dancing the night away!
+              </p>
+
+              <div className="event-meta">
+                <p className="event-meta-item">25 SEP</p>
+                <span className="event-meta-divider" aria-hidden="true" />
+                <p className="event-meta-item">20:00 P.M.</p>
+              </div>
+
+              <p className="venue-address">
+                Rixos Alamein Hotel, North Coast,<br />Egypt
+              </p>
+
+              <a
+                className="map-button"
+                href="https://maps.app.goo.gl/LihWnPfcCP9a7Xu58"
+                target="_blank"
+                rel="noreferrer"
+                style={{ position: 'relative', zIndex: 50, pointerEvents: 'auto' }}
+              >
+                Location
+              </a>
             </div>
 
-            <a
-              className="map-button"
-              href="https://maps.app.goo.gl/LihWnPfcCP9a7Xu58"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open in Maps
-            </a>
           </section>
 
-          <section className="invitation-block" aria-label="Dress code section">
-            <video
-              className="section-icon-video section-icon-small"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="metadata"
-              aria-hidden="true"
-            >
-              <source src={dressCodeVideo} type="video/mp4" />
-            </video>
-            <h2 className="section-title">DRESS CODE</h2>
-            <p className="section-subtitle">SemiFormal | Baby Blue</p>
+          <section className="invitation-block" aria-label="Dress code section">            
+
+            <div >
+              <h2 className="section-title">DRESS CODE</h2>
+              <p className="section-subtitle">Semi-Formal | Baby Blue</p>
+            </div>
           </section>
 
           <section className="invitation-block" aria-label="RSVP section">
-            <video
-              className="section-icon-video section-icon-small"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="metadata"
-              aria-hidden="true"
+
+            <LottieErrorBoundary
+              fallback={"Animation failed to load."}
+              onError={(error, info) => console.log("Lottie error:", error, info)}
             >
-              <source src={rsvpVideo} type="video/mp4" />
-            </video>
-            <h2 className="section-title">RSVP</h2>
+              <div
+                style={{
+                  marginTop: '-840px',
+                  width: '100%',
+                  height: '1700px',
+                  pointerEvents: 'none',
+                  transform: 'translateY(-97%)', /* adjust this value to center the animation vertically */
+                }}>
+                {LottieComponent ? (
+                  <LottieComponent
+                    animationData={rsvpAnimation}
+                    loop={true}
+                    autoplay={true}
+                    style={{ width: '150%', height: '3400px', marginLeft: '-25%', overflow: 'hidden', pointerEvents: 'none' }}
+                  />
+                ) : (
+                  <div className="section-icon-video section-icon-rings" aria-hidden="true" />
+                )}
+              </div>
 
-            <form className="rsvp-form" onSubmit={handleRsvpSubmit} noValidate>
-              <input
-                className="rsvp-input"
-                type="text"
-                name="name"
-                placeholder="Name"
-                autoComplete="name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                aria-invalid={!!nameError}
-              />
-              {!!nameError && <p className="rsvp-feedback rsvp-feedback-error">{nameError}</p>}
+            </LottieErrorBoundary>
 
-              <input
-                className="rsvp-input"
-                type="number"
-                name="plusOnes"
-                placeholder="Are you bringing a plus 1?"
-                min="0"
-                max="5"
-                value={plusOnes}
-                onChange={(event) => setPlusOnes(event.target.value)}
-                aria-invalid={!!plusOnesError}
-              />
-              {!!plusOnesError && (
-                <p className="rsvp-feedback rsvp-feedback-error">{plusOnesError}</p>
-              )}
+            <div
+              style={{ marginTop: "-730px" }}
+            >
 
-              <button className="rsvp-submit" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Submitting...' : 'Confirm'}
-              </button>
 
-              {!!formError && <p className="rsvp-feedback rsvp-feedback-error">{formError}</p>}
-              {!!formSuccess && <p className="rsvp-feedback rsvp-feedback-success">{formSuccess}</p>}
-            </form>
+              <h2 className="section-title">RSVP</h2>
+
+              <p className="section-subtitle">Are you bringing a plus 1?</p>
+
+              <form className="rsvp-form" onSubmit={handleRsvpSubmit} noValidate>
+                <input
+                  className="rsvp-input"
+                  type="text"
+                  name="name"
+                  placeholder="Name"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  aria-invalid={!!nameError}
+                />
+                {!!nameError && <p className="rsvp-feedback rsvp-feedback-error">{nameError}</p>}
+
+                <input
+                  className="rsvp-input"
+                  type="number"
+                  name="plusOnes"
+                  placeholder="Are you bringing a plus 1?"
+                  min="0"
+                  max="5"
+                  value={plusOnes}
+                  onChange={(event) => setPlusOnes(event.target.value)}
+                  aria-invalid={!!plusOnesError}
+                />
+                {!!plusOnesError && (
+                  <p className="rsvp-feedback rsvp-feedback-error">{plusOnesError}</p>
+                )}
+
+                <div className="rsvp-toggle-row">
+                  <button type="button" className="rsvp-toggle rsvp-toggle-yes" onClick={() => setPlusOnes('1')}>Yes</button>
+                  <button type="button" className="rsvp-toggle rsvp-toggle-no" onClick={() => setPlusOnes('0')}>No</button>
+                </div>
+
+                <button className="rsvp-submit" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Submitting...' : 'Confirm'}
+                </button>
+
+                {!!formError && <p className="rsvp-feedback rsvp-feedback-error">{formError}</p>}
+                {!!formSuccess && <p className="rsvp-feedback rsvp-feedback-success">{formSuccess}</p>}
+              </form>
+
+            </div>
+
           </section>
 
           <section className="invitation-block invitation-block-last" aria-label="Attendees summary">
@@ -480,6 +571,7 @@ function App() {
           </section>
         </div>
       </section>
+      
     </main>
   )
 }
